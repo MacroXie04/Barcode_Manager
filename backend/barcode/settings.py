@@ -28,18 +28,9 @@ load_dotenv(BASE_DIR / ".env")
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is required")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-
-# Project API and webapp mode
-API_SERVER = os.getenv("API_SERVER", "False").lower() == "true"
-
-# When API_ENABLED is False, please set the following flags
-API_ENABLED = os.getenv("API_ENABLED", "True").lower() == "true"
-WEBAPP_ENABLED = os.getenv("WEBAPP_ENABLED", "True").lower() == "true"
 
 # Enable django default web admin interface
 WEB_ADMIN = os.getenv("WEB_ADMIN", "True").lower() == "true"
@@ -49,23 +40,23 @@ SELENIUM_ENABLED = os.getenv("SELENIUM_ENABLED", "False").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# If running in test mode, set environment variables accordingly
-if "test" in sys.argv:
-    API_SERVER = False
-    WEBAPP_ENABLED = True
-
-# Application definition
 
 INSTALLED_APPS = [
     # mobileid app
     "mobileid.apps.MobileidConfig",
+
+    # user authentication
+    "authn.apps.AuthnConfig",
+    
     # Django REST framework
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework.authtoken",
     "corsheaders",
+
     # modules
     "widget_tweaks",
+
     # Default Django apps
     "django.contrib.admin",
     "django.contrib.auth",
@@ -74,6 +65,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
+
+# Static files
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 
 MIDDLEWARE = [
     # CORS middleware must be placed before Django's security middleware
@@ -86,16 +82,15 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    
-    # Custom middleware for account type routing
-    "mobileid.middleware.routing.AccountTypeRoutingMiddleware",
 ]
+
+
 
 # URL configuration
 CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in os.getenv(
         "CORS_ALLOWED_ORIGINS", 
-        "http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:3000"
+        "http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173"
     ).split(",") if origin.strip()
 ]
 
@@ -103,7 +98,7 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     origin.strip() for origin in os.getenv(
         "CSRF_TRUSTED_ORIGINS", 
-        "http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:3000"
+        "http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173"
     ).split(",") if origin.strip()
 ]
 
@@ -121,6 +116,7 @@ SESSION_SAVE_EVERY_REQUEST = os.getenv("SESSION_SAVE_EVERY_REQUEST", "True").low
 # CORS settings
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        "authn.middleware.authentication.CookieJWTAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
@@ -147,6 +143,7 @@ SIMPLE_JWT = {
     "ALGORITHM": os.getenv("JWT_ALGORITHM", "HS256"),
     "SIGNING_KEY": SECRET_KEY,
 }
+
 
 ROOT_URLCONF = "barcode.urls"
 
@@ -182,6 +179,15 @@ DATABASES = {
     }
 }
 
+# MySQL extra options
+if DATABASES["default"]["ENGINE"].endswith("mysql"):
+    DATABASES["default"]["OPTIONS"] = {
+        "charset": "utf8mb4",
+        "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+    }
+    DATABASES["default"]["CONN_MAX_AGE"] = 60
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -212,12 +218,6 @@ USE_I18N = True
 
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -239,7 +239,3 @@ CACHES = {
     }
 }
 SESSION_ENGINE = os.getenv("SESSION_ENGINE", "django.contrib.sessions.backends.db")
-
-STATICFILES_DIRS = [
-    BASE_DIR / "mobileid" / "static",
-]
